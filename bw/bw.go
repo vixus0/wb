@@ -22,7 +22,7 @@ func LookPath() {
 }
 
 func Cmd(args ...string) (status int, out string) {
-  bytes, err := exec.Command("bw", args...).Output()
+  bytes, err := exec.Command("bw", args...).CombinedOutput()
   out = string(bytes)
   status = OK
 

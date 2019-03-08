@@ -58,9 +58,12 @@ func runCmd(oldSession string, args []string) (session string, out string) {
     case bw.NOT_LOGGED_IN:
       log.Println("Login")
       status, session = bw.Login()
+    case bw.ERROR:
+      log.Fatalln("bw:", out)
     }
+    // check if something went wrong logging in
     if status == bw.ERROR {
-      log.Fatalln("bw:", session)
+      log.Fatalln(session)
     }
     bwArgs[1] = session
   }
