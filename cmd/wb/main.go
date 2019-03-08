@@ -8,6 +8,7 @@ import (
   "net/rpc"
   "os"
   "os/exec"
+  "strings"
   "time"
 
   "github.com/vixus0/wb/bw"
@@ -142,6 +143,15 @@ func main() {
   if len(flag.Args()) == 0 {
     fmt.Print(usage)
     os.Exit(1)
+  }
+
+  // If this is just a --help request, don't bother with anything else
+  for _, f := range flag.Args() {
+    if strings.Contains(f, "--help") {
+      bytes, _ := exec.Command("bw", flag.Args()...).CombinedOutput()
+      fmt.Print(string(bytes))
+      return
+    }
   }
 
   var (
