@@ -5,11 +5,11 @@ import (
   "net"
   "net/rpc"
   "os"
+  "os/exec"
   "os/signal"
   "syscall"
   "time"
 
-  "github.com/vixus0/wb/bw"
   "github.com/vixus0/wb/util"
   "github.com/vixus0/wb/wbd"
 )
@@ -18,8 +18,8 @@ var sessionKey string
 
 func cleanup() {
   log.Println("Cleaning up")
+  exec.Command("bw", "lock").Run()
   os.Remove(wbd.Sock)
-  bw.Lock()
   os.Exit(0)
 }
 
@@ -27,10 +27,12 @@ func main() {
   log.SetPrefix("[wbd] ")
   log.SetFlags(0)
 
-  sessionKey := util.Input("Session key: ")
+  sessionKey := util.Input()
+
   if len(sessionKey) == 0 {
-    log.Fatal("empty input")
+    log.Fatal("Empty input")
   }
+
   log.Printf("Got session key: %v...", util.Trunc(sessionKey, 8))
 
   serverStop := make(chan bool)

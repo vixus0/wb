@@ -1,6 +1,7 @@
 package util
 
 import (
+  "fmt"
   "bufio"
   "log"
   "math"
@@ -25,18 +26,17 @@ func IsPipe() bool {
 }
 
 func PasswordInput() string {
-  defer log.Print("\n")
-  log.Print("Password: ")
   bytes, err := terminal.ReadPassword(int(syscall.Stdin))
+  fmt.Println()
   Err("password error:", err)
-  return strings.TrimSpace(string(bytes))
+  return string(bytes)
 }
 
-func Input(prompt string) string {
+func Input() string {
   reader := bufio.NewReader(os.Stdin)
   input, err := reader.ReadString('\n')
   Err("input error:", err)
-  return input
+  return strings.TrimSpace(input)
 }
 
 func Trunc(s string, l int) string {
@@ -44,3 +44,6 @@ func Trunc(s string, l int) string {
   return s[:end]
 }
 
+func B2S(bytes []byte) string {
+  return strings.TrimSpace(string(bytes))
+}

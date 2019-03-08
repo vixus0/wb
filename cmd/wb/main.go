@@ -1,6 +1,7 @@
 package main
 
 import (
+  "flag"
   "fmt"
   "io"
   "log"
@@ -13,6 +14,21 @@ import (
   "github.com/vixus0/wb/util"
   "github.com/vixus0/wb/wbd"
 )
+
+const usage = `wb <bitwarden command>
+
+See bitwarden CLI documentation for commands.
+
+Optional flags for non-interactive use:
+  --email --password --method --code
+`
+
+type Flags struct {
+  Email *string
+  Method *string
+  Code *string
+  Password *string
+}
 
 func spawnWbd(input string) {
   cmd := exec.Command("wbd")
@@ -37,35 +53,72 @@ func spawnWbd(input string) {
   log.Fatal("failed to find", wbd.Sock)
 }
 
-func connectWbd() (client *rpc.Client, err error) {
-  client, err = rpc.Dial("unix", wbd.Sock)
-  return
+func getFlagOrInput(thing string, ptr *string, hide bool) {
+  if len(*ptr) > 0 {
+    return
+  } 
+
+  if util.IsTTY() {
+    fmt.Printf("Enter %s: ", thing)
+    if hide {
+      *ptr = util.PasswordInput()
+    } else {
+      *ptr = util.Input()
+    }
+    return
+  }
+
+  panic(fmt.Sprintf("Need a value for %s", thing))
 }
 
-func runCmd(oldSession string, args []string) (session string, out string) {
-  session = oldSession
+func getSession(fl *Flags, newsession bool) (session string) {
+  client, rpcerr := rpc.Dial("unix", wbd.Sock)
 
-  bwArgs := []string{"--session", session}
-  bwArgs = append(bwArgs, args...)
+  // if we can't connect to wbd, then assume new session
+  if rpcerr != nil {
+    newsession = true
+  }
 
-  status := -1
-
-  for ; status != bw.OK; status, out = bw.Cmd(bwArgs...) {
-    switch status {
-    case bw.LOCKED:
-      log.Println("Unlock")
-      status, session = bw.Unlock()
-    case bw.NOT_LOGGED_IN:
-      log.Println("Login")
-      status, session = bw.Login()
-    case bw.ERROR:
-      log.Fatalln("bw:", out)
+  if newsession {
+    if rpcerr == nil {
+      client.Call("Server.Stop", 0, nil)
     }
-    // check if something went wrong logging in
-    if status == bw.ERROR {
-      log.Fatalln(session)
+
+    bwargs := []string{}
+
+    if bw.IsLoggedIn() {
+      // need to unlock
+      log.Println("Unlock your vault")
+      defer func() {
+        if r := recover(); r != nil {
+          log.Print(r)
+          os.Exit(bw.Locked)
+        }
+      }()
+      getFlagOrInput("password", fl.Password, true)
+      bwargs = append(bwargs, "unlock", "--raw", *fl.Password)
+    } else {
+      // need to login
+      log.Println("Login to bitwarden")
+      defer func() {
+        if r := recover(); r != nil {
+          log.Print(r)
+          os.Exit(bw.NotLoggedIn)
+        }
+      }()
+      getFlagOrInput("email", fl.Email, false)
+      getFlagOrInput("password", fl.Password, true)
+      getFlagOrInput("code", fl.Code, false)
+      bwargs = append(bwargs, "login", "--raw", "--method", *fl.Method, "--code", *fl.Code, *fl.Email, *fl.Password)
     }
-    bwArgs[1] = session
+    bytes, err := exec.Command("bw", bwargs...).Output()
+    session = util.B2S(bytes)
+    if err != nil {
+      log.Fatalf("Failed to %s: %s", bwargs[0], session)
+    }
+    spawnWbd(session)
+  } else {
+    client.Call("Server.GetSession", 0, &session)
   }
 
   return
@@ -77,29 +130,34 @@ func main() {
   log.SetPrefix("[wb] ")
   log.SetFlags(0)
 
-  // args
-  if len(os.Args) == 1 {
-    fmt.Println("Usage: wb <bitwarden command>")
-    fmt.Println("  See bitwarden cli usage for details")
+  fl := &Flags{}
+
+  fl.Email = flag.String("email", "", "Bitwarden email")
+  fl.Password = flag.String("password", "", "Bitwarden password")
+  fl.Method = flag.String("method", "0", "2fa method (0 = app, 3 = yubikey)")
+  fl.Code = flag.String("code", "", "TOTP code for 2fa")
+
+  flag.Parse()
+
+  if len(flag.Args()) == 0 {
+    fmt.Print(usage)
     os.Exit(1)
   }
 
-  var session, out string
-  client, err := connectWbd()
+  var (
+    status int
+    out string
+  )
 
-  if err != nil {
-    session, out = runCmd("", os.Args[1:])
-    spawnWbd(session)
-  } else {
-    var wbdSession string
-    client.Call("Server.GetSession", 0, &wbdSession)
-    session, out = runCmd(wbdSession, os.Args[1:])
+  newsession := false
 
-    if session != wbdSession {
-      client.Call("Server.Stop", 0, nil)
-      spawnWbd(session)
-    }
+  for status = -1;; {
+    session := getSession(fl, newsession)
+    status, out = bw.Cmd(session, flag.Args()...)
+    if status == bw.OK || status == bw.Error { break }
+    newsession = true
   }
 
   fmt.Print(out)
+  os.Exit(status)
 }
