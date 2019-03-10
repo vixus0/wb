@@ -1,7 +1,6 @@
 package util
 
 import (
-  "fmt"
   "bufio"
   "log"
   "math"
@@ -27,7 +26,6 @@ func IsPipe() bool {
 
 func PasswordInput() string {
   bytes, err := terminal.ReadPassword(int(syscall.Stdin))
-  fmt.Println()
   Err("password error:", err)
   return string(bytes)
 }

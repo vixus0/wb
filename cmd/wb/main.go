@@ -60,7 +60,7 @@ func getFlagOrInput(thing string, ptr *string, hide bool) {
   } 
 
   if util.IsTTY() {
-    fmt.Printf("Enter %s: ", thing)
+    log.Printf("Enter %s: ", thing)
     if hide {
       *ptr = util.PasswordInput()
     } else {
