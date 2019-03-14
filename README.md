@@ -13,8 +13,8 @@ wb <some bw command>
 
 - I wanted to learn some Go
 - I didn't want to have to deal with my Bitwarden session key manually
-- It plays better with external tools (you can optionally pass credentials via the command-line)
-- One shared session wherever you call `wbd` from
+- It plays better with external tools by allowing you to pass login credentials via the command-line
+- There's only one shared session wherever you call `wb` from
 
 ## How it works
 
