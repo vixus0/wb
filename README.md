@@ -22,4 +22,4 @@ wb <some bw command>
 Subsequent calls to `wb` that require a session key fetch it from `wbd` using Go's _net/rpc_ library.
 `wbd` dies on its own after ten minutes or is asked to die if the session key is invalid for whatever reason.
 
-[bitwarden-cli]: bitwarden/cli
+[bitwarden-cli]: https://github.com/bitwarden/cli
