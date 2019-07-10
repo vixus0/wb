@@ -1,19 +1,19 @@
 package main
 
 import (
-  "flag"
-  "fmt"
-  "io"
-  "log"
-  "net/rpc"
-  "os"
-  "os/exec"
-  "strings"
-  "time"
+	"flag"
+	"fmt"
+	"io"
+	"log"
+	"net/rpc"
+	"os"
+	"os/exec"
+	"strings"
+	"time"
 
-  "github.com/vixus0/wb/bw"
-  "github.com/vixus0/wb/util"
-  "github.com/vixus0/wb/wbd"
+	"github.com/vixus0/wb/bw"
+	"github.com/vixus0/wb/util"
+	"github.com/vixus0/wb/wbd"
 )
 
 const usage = `wb <bitwarden command>
@@ -25,149 +25,151 @@ Optional flags for non-interactive use:
 `
 
 type Flags struct {
-  Email *string
-  Method *string
-  Code *string
-  Password *string
+	Email    *string
+	Method   *string
+	Code     *string
+	Password *string
 }
 
 func spawnWbd(input string) {
-  cmd := exec.Command("wbd")
-  stdin, err := cmd.StdinPipe()
-  util.Err("wbd pipe error:", err)
+	cmd := exec.Command("wbd")
+	stdin, err := cmd.StdinPipe()
+	util.Err("wbd pipe error:", err)
 
-  err = cmd.Start()
-  util.Err("wbd spawn error:", err)
+	err = cmd.Start()
+	util.Err("wbd spawn error:", err)
 
-  go func() {
-    io.WriteString(stdin, input+"\n")
-    stdin.Close()
-  }()
+	go func() {
+		io.WriteString(stdin, input+"\n")
+		stdin.Close()
+	}()
 
-  for i := 0; i < 10; i++ {
-    time.Sleep(100 * time.Millisecond)
-    if _, err := os.Stat(wbd.Sock); err == nil {
-      return
-    }
-  }
+	for i := 0; i < 10; i++ {
+		time.Sleep(100 * time.Millisecond)
+		if _, err := os.Stat(wbd.Sock); err == nil {
+			return
+		}
+	}
 
-  log.Fatal("failed to find", wbd.Sock)
+	log.Fatal("failed to find", wbd.Sock)
 }
 
 func getFlagOrInput(thing string, ptr *string, hide bool) {
-  if len(*ptr) > 0 {
-    return
-  } 
+	if len(*ptr) > 0 {
+		return
+	}
 
-  if util.IsTTY() {
-    log.Printf("Enter %s: ", thing)
-    if hide {
-      *ptr = util.PasswordInput()
-    } else {
-      *ptr = util.Input()
-    }
-    return
-  }
+	if util.IsTTY() {
+		log.Printf("Enter %s: ", thing)
+		if hide {
+			*ptr = util.PasswordInput()
+		} else {
+			*ptr = util.Input()
+		}
+		return
+	}
 
-  panic(fmt.Sprintf("Need a value for %s", thing))
+	panic(fmt.Sprintf("Need a value for %s", thing))
 }
 
 func getSession(fl *Flags, newsession bool) (session string) {
-  client, rpcerr := rpc.Dial("unix", wbd.Sock)
+	client, rpcerr := rpc.Dial("unix", wbd.Sock)
 
-  // if we can't connect to wbd, then assume new session
-  if rpcerr != nil {
-    newsession = true
-  }
+	// if we can't connect to wbd, then assume new session
+	if rpcerr != nil {
+		newsession = true
+	}
 
-  if newsession {
-    if rpcerr == nil {
-      client.Call("Server.Stop", 0, nil)
-    }
+	if newsession {
+		if rpcerr == nil {
+			client.Call("Server.Stop", 0, nil)
+		}
 
-    bwargs := []string{}
+		bwargs := []string{}
 
-    if bw.IsLoggedIn() {
-      // need to unlock
-      log.Println("Unlock your vault")
-      defer func() {
-        if r := recover(); r != nil {
-          log.Print(r)
-          os.Exit(bw.Locked)
-        }
-      }()
-      getFlagOrInput("password", fl.Password, true)
-      bwargs = append(bwargs, "unlock", "--raw", *fl.Password)
-    } else {
-      // need to login
-      log.Println("Login to bitwarden")
-      defer func() {
-        if r := recover(); r != nil {
-          log.Print(r)
-          os.Exit(bw.NotLoggedIn)
-        }
-      }()
-      getFlagOrInput("email", fl.Email, false)
-      getFlagOrInput("password", fl.Password, true)
-      getFlagOrInput("code", fl.Code, false)
-      bwargs = append(bwargs, "login", "--raw", "--method", *fl.Method, "--code", *fl.Code, *fl.Email, *fl.Password)
-    }
-    bytes, err := exec.Command("bw", bwargs...).Output()
-    session = util.B2S(bytes)
-    if err != nil {
-      log.Fatalf("Failed to %s: %s", bwargs[0], session)
-    }
-    spawnWbd(session)
-  } else {
-    client.Call("Server.GetSession", 0, &session)
-  }
+		if bw.IsLoggedIn() {
+			// need to unlock
+			log.Println("Unlock your vault")
+			defer func() {
+				if r := recover(); r != nil {
+					log.Print(r)
+					os.Exit(bw.Locked)
+				}
+			}()
+			getFlagOrInput("password", fl.Password, true)
+			bwargs = append(bwargs, "unlock", "--raw", *fl.Password)
+		} else {
+			// need to login
+			log.Println("Login to bitwarden")
+			defer func() {
+				if r := recover(); r != nil {
+					log.Print(r)
+					os.Exit(bw.NotLoggedIn)
+				}
+			}()
+			getFlagOrInput("email", fl.Email, false)
+			getFlagOrInput("password", fl.Password, true)
+			getFlagOrInput("code", fl.Code, false)
+			bwargs = append(bwargs, "login", "--raw", "--method", *fl.Method, "--code", *fl.Code, *fl.Email, *fl.Password)
+		}
+		bytes, err := exec.Command("bw", bwargs...).Output()
+		session = util.B2S(bytes)
+		if err != nil {
+			log.Fatalf("Failed to %s: %s", bwargs[0], session)
+		}
+		spawnWbd(session)
+	} else {
+		client.Call("Server.GetSession", 0, &session)
+	}
 
-  return
+	return
 }
 
 func main() {
-  bw.LookPath()
+	bw.LookPath()
 
-  log.SetPrefix("[wb] ")
-  log.SetFlags(0)
+	log.SetPrefix("[wb] ")
+	log.SetFlags(0)
 
-  fl := &Flags{}
+	fl := &Flags{}
 
-  fl.Email = flag.String("email", "", "Bitwarden email")
-  fl.Password = flag.String("password", "", "Bitwarden password")
-  fl.Method = flag.String("method", "0", "2fa method (0 = app, 3 = yubikey)")
-  fl.Code = flag.String("code", "", "TOTP code for 2fa")
+	fl.Email = flag.String("email", "", "Bitwarden email")
+	fl.Password = flag.String("password", "", "Bitwarden password")
+	fl.Method = flag.String("method", "0", "2fa method (0 = app, 3 = yubikey)")
+	fl.Code = flag.String("code", "", "TOTP code for 2fa")
 
-  flag.Parse()
+	flag.Parse()
 
-  if len(flag.Args()) == 0 {
-    fmt.Print(usage)
-    os.Exit(1)
-  }
+	if len(flag.Args()) == 0 {
+		fmt.Print(usage)
+		os.Exit(1)
+	}
 
-  // If this is just a --help request, don't bother with anything else
-  for _, f := range flag.Args() {
-    if strings.Contains(f, "--help") {
-      bytes, _ := exec.Command("bw", flag.Args()...).CombinedOutput()
-      fmt.Print(string(bytes))
-      return
-    }
-  }
+	// If this is just a --help request, don't bother with anything else
+	for _, f := range flag.Args() {
+		if strings.Contains(f, "--help") {
+			bytes, _ := exec.Command("bw", flag.Args()...).CombinedOutput()
+			fmt.Print(string(bytes))
+			return
+		}
+	}
 
-  var (
-    status int
-    out string
-  )
+	var (
+		status int
+		out    string
+	)
 
-  newsession := false
+	newsession := false
 
-  for status = -1;; {
-    session := getSession(fl, newsession)
-    status, out = bw.Cmd(session, flag.Args()...)
-    if status == bw.OK || status == bw.Error { break }
-    newsession = true
-  }
+	for status = -1; ; {
+		session := getSession(fl, newsession)
+		status, out = bw.Cmd(session, flag.Args()...)
+		if status == bw.OK || status == bw.Error {
+			break
+		}
+		newsession = true
+	}
 
-  fmt.Print(out)
-  os.Exit(status)
+	fmt.Print(out)
+	os.Exit(status)
 }
