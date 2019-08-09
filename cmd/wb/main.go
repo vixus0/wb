@@ -85,37 +85,50 @@ func getSession(fl *Flags, newsession bool) (session string) {
 			client.Call("Server.Stop", 0, nil)
 		}
 
-		bwargs := []string{}
+		for {
+			bwargs := []string{}
 
-		if bw.IsLoggedIn() {
-			// need to unlock
-			log.Println("Unlock your vault")
-			defer func() {
-				if r := recover(); r != nil {
-					log.Print(r)
-					os.Exit(bw.Locked)
+			if bw.IsLoggedIn() {
+				// need to unlock
+				log.Println("Unlock your vault")
+				defer func() {
+					if r := recover(); r != nil {
+						log.Print(r)
+						os.Exit(bw.Locked)
+					}
+				}()
+				getFlagOrInput("password", fl.Password, true)
+				bwargs = append(bwargs, "unlock", "--raw", *fl.Password)
+			} else {
+				// need to login
+				log.Println("Login to bitwarden")
+				defer func() {
+					if r := recover(); r != nil {
+						log.Print(r)
+						os.Exit(bw.NotLoggedIn)
+					}
+				}()
+				getFlagOrInput("email", fl.Email, false)
+				getFlagOrInput("password", fl.Password, true)
+				getFlagOrInput("code", fl.Code, false)
+				bwargs = append(bwargs, "login", "--raw", "--method", *fl.Method, "--code", *fl.Code, *fl.Email, *fl.Password)
+			}
+			bytes, err := exec.Command("bw", bwargs...).Output()
+			session = util.B2S(bytes)
+			if err == nil {
+				break
+			} else {
+				msg := fmt.Sprintf("Failed to %s: %s", bwargs[0], session)
+				if !util.IsTTY() {
+					log.Fatal(msg)
 				}
-			}()
-			getFlagOrInput("password", fl.Password, true)
-			bwargs = append(bwargs, "unlock", "--raw", *fl.Password)
-		} else {
-			// need to login
-			log.Println("Login to bitwarden")
-			defer func() {
-				if r := recover(); r != nil {
-					log.Print(r)
-					os.Exit(bw.NotLoggedIn)
-				}
-			}()
-			getFlagOrInput("email", fl.Email, false)
-			getFlagOrInput("password", fl.Password, true)
-			getFlagOrInput("code", fl.Code, false)
-			bwargs = append(bwargs, "login", "--raw", "--method", *fl.Method, "--code", *fl.Code, *fl.Email, *fl.Password)
-		}
-		bytes, err := exec.Command("bw", bwargs...).Output()
-		session = util.B2S(bytes)
-		if err != nil {
-			log.Fatalf("Failed to %s: %s", bwargs[0], session)
+				log.Print(msg)
+
+				// reset strings
+				*fl.Email = ""
+				*fl.Password = ""
+				*fl.Code = ""
+			}
 		}
 		spawnWbd(session)
 	} else {
