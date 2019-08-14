@@ -183,6 +183,8 @@ func main() {
 		newsession = true
 	}
 
-	fmt.Print(out)
+	trimmed := strings.TrimSpace(out)
+
+	fmt.Printf(trimmed)
 	os.Exit(status)
 }
