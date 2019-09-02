@@ -19,7 +19,10 @@ const (
 	NotLoggedIn = 3
 )
 
-var bwFile = fmt.Sprintf("%s/.config/Bitwarden CLI/data.json", os.Getenv("HOME"))
+var bwFileLocations = []string{
+	fmt.Sprintf("%s/.config/Bitwarden CLI/data.json", os.Getenv("HOME")),
+	fmt.Sprintf("%s/Library/Application Support/Bitwarden CLI/data.json", os.Getenv("HOME")),
+}
 
 func Cmd(session string, args ...string) (status int, out string) {
 	args = append(args, "--session", session)
@@ -53,17 +56,20 @@ func LookPath() {
 
 func IsLoggedIn() bool {
 	var data map[string]interface{}
-	if bytes, err := ioutil.ReadFile(bwFile); err == nil {
-		if err := json.Unmarshal(bytes, &data); err != nil {
-			log.Fatal(err)
+	var err error
+
+	for _, bwFile := range bwFileLocations {
+		if bytes, err := ioutil.ReadFile(bwFile); err == nil {
+			if err = json.Unmarshal(bytes, &data); err == nil {
+				for k := range data {
+					if k == "userId" {
+						return true
+					}
+				}
+			}
 		}
-	} else {
-		log.Fatal(err)
 	}
-	for k := range data {
-		if k == "userId" {
-			return true
-		}
-	}
+
+	log.Print(err)
 	return false
 }
