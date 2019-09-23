@@ -13,7 +13,7 @@ import (
 
 	"github.com/vixus0/wb/bw"
 	"github.com/vixus0/wb/util"
-	"github.com/vixus0/wb/wbd"
+	"github.com/vixus0/wb/server"
 )
 
 const usage = `wb <bitwarden command>
@@ -46,12 +46,12 @@ func spawnWbd(input string) {
 
 	for i := 0; i < 10; i++ {
 		time.Sleep(100 * time.Millisecond)
-		if _, err := os.Stat(wbd.Sock); err == nil {
+		if _, err := os.Stat(server.Sock); err == nil {
 			return
 		}
 	}
 
-	log.Fatal("failed to find", wbd.Sock)
+	log.Fatal("failed to find", server.Sock)
 }
 
 func getFlagOrInput(thing string, ptr *string, hide bool) {
@@ -73,7 +73,7 @@ func getFlagOrInput(thing string, ptr *string, hide bool) {
 }
 
 func getSession(fl *Flags, newsession bool) (session string) {
-	client, rpcerr := rpc.Dial("unix", wbd.Sock)
+	client, rpcerr := rpc.Dial("unix", server.Sock)
 
 	// if we can't connect to wbd, then assume new session
 	if rpcerr != nil {

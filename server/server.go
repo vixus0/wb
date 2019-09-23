@@ -1,4 +1,4 @@
-package wbd
+package server
 
 import (
 	"log"

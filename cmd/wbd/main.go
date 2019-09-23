@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/vixus0/wb/util"
-	"github.com/vixus0/wb/wbd"
+	"github.com/vixus0/wb/server"
 )
 
 var sessionKey string
@@ -19,7 +19,7 @@ var sessionKey string
 func cleanup() {
 	log.Println("Cleaning up")
 	exec.Command("bw", "lock").Run()
-	os.Remove(wbd.Sock)
+	os.Remove(server.Sock)
 	os.Exit(0)
 }
 
@@ -36,7 +36,7 @@ func main() {
 	log.Printf("Got session key: %v...", util.Trunc(sessionKey, 8))
 
 	serverStop := make(chan bool)
-	server := wbd.NewServer(sessionKey, &serverStop)
+	srv := server.NewServer(sessionKey, &serverStop)
 
 	// Deal with interrupt signals
 	sig := make(chan os.Signal, 1)
@@ -48,7 +48,7 @@ func main() {
 
 	// Die after lock delay
 	go func() {
-		time.Sleep(wbd.LockDelay)
+		time.Sleep(server.LockDelay)
 		cleanup()
 	}()
 
@@ -58,10 +58,10 @@ func main() {
 		cleanup()
 	}()
 
-	listener, err := net.Listen("unix", wbd.Sock)
+	listener, err := net.Listen("unix", server.Sock)
 	util.Err("listener error:", err)
 
-	rpc.Register(server)
+	rpc.Register(srv)
 	rpc.Accept(listener)
 
 	log.Println("started")
